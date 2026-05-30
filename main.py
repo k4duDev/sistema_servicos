@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, Form
+from fastapi import FastAPI, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -119,7 +119,9 @@ def excluir_cliente(id: int):
 
     db = SessionLocal()
 
-    cliente = db.query(Cliente).get(id)
+    cliente = db.get(Cliente, id)
+    if cliente is None:
+        raise HTTPException(status_code=404, detail="Cliente não encontrado")
 
     db.delete(cliente)
 
@@ -141,7 +143,9 @@ def editar_cliente(
 
     db = SessionLocal()
 
-    cliente = db.query(Cliente).get(id)
+    cliente = db.get(Cliente, id)
+    if cliente is None:
+        raise HTTPException(status_code=404, detail="Cliente não encontrado")
 
     return templates.TemplateResponse(
         "editar_cliente.html",
@@ -160,7 +164,9 @@ def atualizar_cliente(
 
     db = SessionLocal()
 
-    cliente = db.query(Cliente).get(id)
+    cliente = db.get(Cliente, id)
+    if cliente is None:
+        raise HTTPException(status_code=404, detail="Cliente não encontrado")
 
     cliente.nome = nome
     cliente.cidade = cidade
@@ -275,7 +281,9 @@ def editar_banco(
 
     db = SessionLocal()
 
-    banco = db.query(Banco).get(id)
+    banco = db.get(Banco, id)
+    if banco is None:
+        raise HTTPException(status_code=404, detail="Banco não encontrado")
 
     return templates.TemplateResponse(
         "editar_banco.html",
@@ -296,7 +304,9 @@ def atualizar_banco(
 
     db = SessionLocal()
 
-    banco = db.query(Banco).get(id)
+    banco = db.get(Banco, id)
+    if banco is None:
+        raise HTTPException(status_code=404, detail="Banco não encontrado")
 
     banco.nome_banco = nome_banco
     banco.cidade = cidade
@@ -382,7 +392,9 @@ def editar_servico(request: Request, id: int):
 
     db = SessionLocal()
 
-    servico = db.query(Servico).get(id)
+    servico = db.get(Servico, id)
+    if servico is None:
+        raise HTTPException(status_code=404, detail="Serviço não encontrado")
 
     return templates.TemplateResponse(
         "editar_servico.html",
@@ -401,7 +413,9 @@ def atualizar_servico(
 
     db = SessionLocal()
 
-    servico = db.query(Servico).get(id)
+    servico = db.get(Servico, id)
+    if servico is None:
+        raise HTTPException(status_code=404, detail="Serviço não encontrado")
 
     servico.descricao = descricao
 
@@ -416,7 +430,9 @@ def excluir_servico(id: int):
 
     db = SessionLocal()
 
-    servico = db.query(Servico).get(id)
+    servico = db.get(Servico, id)
+    if servico is None:
+        raise HTTPException(status_code=404, detail="Serviço não encontrado")
 
     db.delete(servico)
 

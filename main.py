@@ -6,9 +6,12 @@ from fastapi.templating import Jinja2Templates
 from database import SessionLocal, engine
 from models import Base, Usuario, Cliente, Banco, Servico
 
+print("MAIN INICIANDO...")
 Base.metadata.create_all(bind=engine)
+print("BANCO CONECTADO")
 
 app = FastAPI()
+print("FASTAPI CRIADO")
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 

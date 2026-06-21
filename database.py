@@ -1,41 +1,39 @@
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.exc import OperationalError
+from sqlalchemy.orm import declarative_base, sessionmaker
 
-# Tentar carregar .env
-try:
-    from dotenv import load_dotenv
-    env_path = Path(__file__).parent / ".env"
-    if env_path.exists():
-        load_dotenv(env_path)
-except ImportError:
-    pass
+env_path = Path(__file__).parent / ".env"
+load_dotenv(env_path)
 
 DATABASE_URL = os.getenv("DATABASE_URL")
+
 if not DATABASE_URL:
-    raise RuntimeError(
-        "\n[ERRO] DATABASE_URL nao esta definida.\n"
-        "Configure a variavel de ambiente DATABASE_URL ou crie um arquivo .env\n\n"
-        "Exemplo para PostgreSQL local:\n"
-        "  export DATABASE_URL='postgresql://postgres:password@localhost:5432/sistema_servicos'\n\n"
-        "Ou copie .env.example para .env e edite com suas credenciais PostgreSQL"
-    )
+    DATABASE_URL = f"sqlite:///{Path(__file__).parent / 'banco.db'}"
+    print("DATABASE_URL não encontrada. Usando fallback local SQLite.")
 
-if not DATABASE_URL.startswith('postgresql'):
-    raise RuntimeError(
-        "\n[ERRO] Este projeto requer PostgreSQL!\n"
-        f"DATABASE_URL nao eh PostgreSQL: {DATABASE_URL[:50]}...\n\n"
-        "Atualize .env com um URL PostgreSQL valido:\n"
-        "  postgresql://usuario:senha@host:5432/banco"
-    )
+connect_args = {}
+if DATABASE_URL.startswith("sqlite"):
+    connect_args["check_same_thread"] = False
+else:
+    # PostgreSQL: adicionar timeout para evitar penduração indefinida
+    connect_args["connect_timeout"] = 5
 
-try:
-    engine = create_engine(DATABASE_URL, echo=False)
-except Exception as e:
-    raise RuntimeError(f"[ERRO] Falha ao criar engine SQLAlchemy:\n{e}")
+engine = create_engine(
+    DATABASE_URL,
+    connect_args=connect_args,
+    pool_pre_ping=not DATABASE_URL.startswith("sqlite"),
+    pool_recycle=300,
+    echo=True
+)
+
+if not DATABASE_URL.startswith("sqlite"):
+    # Nota: o timeout foi configurado em connect_args acima
+    # Não testamos conexão aqui para evitar penduração
+    pass
 
 SessionLocal = sessionmaker(
     autocommit=False,

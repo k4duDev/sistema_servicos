@@ -1,367 +1,267 @@
-from fastapi import FastAPI, Request, Form, HTTPException
+from fastapi import Depends, FastAPI, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from sqlalchemy.orm import Session
+import threading
 
-from database import SessionLocal, engine
-from models import Base, Usuario, Cliente, Banco, Servico
+from database import Base, engine, SessionLocal
+from models import Usuario, Cliente, Banco, Servico
 
-print("MAIN INICIANDO...")
-Base.metadata.create_all(bind=engine)
-print("BANCO CONECTADO")
+print('MAIN INICIANDO...')
 
 app = FastAPI()
-print("FASTAPI CRIADO")
+print('FASTAPI CRIADO')
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount('/static', StaticFiles(directory='static'), name='static')
 
-templates = Jinja2Templates(directory="templates")
+templates = Jinja2Templates(directory='templates')
 
-# LOGIN
-@app.get("/", response_class=HTMLResponse)
+def init_database():
+    """Inicializar banco de dados com timeout."""
+    try:
+        Base.metadata.create_all(bind=engine)
+        print('Banco conectado com sucesso')
+    except Exception as e:
+        print(f'Erro ao conectar ao banco: {e}')
+
+# Tentar inicializar o banco em uma thread separada (background)
+# Não aguardar conclusão para não bloquear o startup do app
+init_thread = threading.Thread(target=init_database, daemon=True)
+init_thread.start()
+
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+@app.get('/', response_class=HTMLResponse)
 def login_page(request: Request):
-    return templates.TemplateResponse(
-        "login.html",
-        {"request": request}
-    )
+    return templates.TemplateResponse(request, 'login.html', {'request': request})
 
-@app.post("/login")
+
+@app.post('/login')
 def login(
     usuario: str = Form(...),
-    senha: str = Form(...)
+    senha: str = Form(...),
+    db: Session = Depends(get_db)
 ):
-
-    db = SessionLocal()
-
     user = db.query(Usuario).filter(
         Usuario.usuario == usuario,
         Usuario.senha == senha
     ).first()
 
     if user:
-        return RedirectResponse("/dashboard", status_code=303)
+        return RedirectResponse('/dashboard', status_code=303)
 
-    return RedirectResponse("/", status_code=303)
+    return RedirectResponse('/', status_code=303)
 
-# DASHBOARD
-@app.get("/dashboard", response_class=HTMLResponse)
-def dashboard(request: Request):
 
-    db = SessionLocal()
-
+@app.get('/dashboard', response_class=HTMLResponse)
+def dashboard(request: Request, db: Session = Depends(get_db)):
     servicos = db.query(Servico).all()
 
-    total = sum([
-        s.valor * s.quantidade
-        for s in servicos
-    ])
-
-    concluidos = len([
-        s for s in servicos
-        if s.status == "Concluído"
-    ])
-
-    pendentes = len([
-        s for s in servicos
-        if s.status == "Pendente"
-    ])
-
-    cancelados = len([
-        s for s in servicos
-        if s.status == "Cancelado"
-    ])
+    total = sum([s.valor * s.quantidade for s in servicos])
+    concluidos = len([s for s in servicos if s.status == 'Concluído'])
+    pendentes = len([s for s in servicos if s.status == 'Pendente'])
+    cancelados = len([s for s in servicos if s.status == 'Cancelado'])
 
     return templates.TemplateResponse(
-        "dashboard.html",
+        request,
+        'dashboard.html',
         {
-            "request": request,
-            "total": total,
-            "concluidos": concluidos,
-            "pendentes": pendentes,
-            "cancelados": cancelados
+            'request': request,
+            'total': total,
+            'concluidos': concluidos,
+            'pendentes': pendentes,
+            'cancelados': cancelados
         }
     )
 
-# CLIENTES
-@app.get("/clientes", response_class=HTMLResponse)
-def clientes(request: Request):
 
-    db = SessionLocal()
-
+@app.get('/clientes', response_class=HTMLResponse)
+def clientes(request: Request, db: Session = Depends(get_db)):
     clientes = db.query(Cliente).all()
 
     return templates.TemplateResponse(
-        "clientes.html",
-        {
-            "request": request,
-            "clientes": clientes
-        }
+        request,
+        'clientes.html',
+        {'request': request, 'clientes': clientes}
     )
 
-@app.post("/clientes")
+
+@app.post('/clientes')
 def salvar_cliente(
     nome: str = Form(...),
-    cidade: str = Form(...)
+    cidade: str = Form(...),
+    db: Session = Depends(get_db)
 ):
-
-    db = SessionLocal()
-
-    novo = Cliente(
-        nome=nome,
-        cidade=cidade
-    )
-
+    novo = Cliente(nome=nome, cidade=cidade)
     db.add(novo)
-
     db.commit()
 
-    return RedirectResponse("/clientes", status_code=303)
+    return RedirectResponse('/clientes', status_code=303)
 
-@app.get("/excluir-cliente/{id}")
-def excluir_cliente(id: int):
 
-    db = SessionLocal()
-
+@app.get('/excluir-cliente/{id}')
+def excluir_cliente(id: int, db: Session = Depends(get_db)):
     cliente = db.get(Cliente, id)
     if cliente is None:
-        raise HTTPException(status_code=404, detail="Cliente não encontrado")
+        raise HTTPException(status_code=404, detail='Cliente não encontrado')
 
     db.delete(cliente)
-
     db.commit()
 
-    return RedirectResponse(
-        "/clientes",
-        status_code=303
-    )
+    return RedirectResponse('/clientes', status_code=303)
 
-@app.get(
-    "/editar-cliente/{id}",
-    response_class=HTMLResponse
-)
-def editar_cliente(
-    request: Request,
-    id: int
-):
 
-    db = SessionLocal()
-
+@app.get('/editar-cliente/{id}', response_class=HTMLResponse)
+def editar_cliente(request: Request, id: int, db: Session = Depends(get_db)):
     cliente = db.get(Cliente, id)
     if cliente is None:
-        raise HTTPException(status_code=404, detail="Cliente não encontrado")
+        raise HTTPException(status_code=404, detail='Cliente não encontrado')
 
     return templates.TemplateResponse(
-        "editar_cliente.html",
-        {
-            "request": request,
-            "cliente": cliente
-        }
+        request,
+        'editar_cliente.html',
+        {'request': request, 'cliente': cliente}
     )
 
-@app.post("/editar-cliente/{id}")
+
+@app.post('/editar-cliente/{id}')
 def atualizar_cliente(
     id: int,
     nome: str = Form(...),
-    cidade: str = Form(...)
+    cidade: str = Form(...),
+    db: Session = Depends(get_db)
 ):
-
-    db = SessionLocal()
-
     cliente = db.get(Cliente, id)
     if cliente is None:
-        raise HTTPException(status_code=404, detail="Cliente não encontrado")
+        raise HTTPException(status_code=404, detail='Cliente não encontrado')
 
     cliente.nome = nome
     cliente.cidade = cidade
-
     db.commit()
 
-    return RedirectResponse(
-        "/clientes",
-        status_code=303
-    )
+    return RedirectResponse('/clientes', status_code=303)
 
-# CADASTRO USUÁRIO
-@app.get("/registrar", response_class=HTMLResponse)
+
+@app.get('/registrar', response_class=HTMLResponse)
 def registrar_page(request: Request):
+    return templates.TemplateResponse(request, 'registrar.html', {'request': request})
 
-    return templates.TemplateResponse(
-        "registrar.html",
-        {"request": request}
-    )
 
-@app.post("/registrar")
+@app.post('/registrar')
 def registrar_usuario(
     usuario: str = Form(...),
     email: str = Form(...),
-    senha: str = Form(...)
+    senha: str = Form(...),
+    db: Session = Depends(get_db)
 ):
-
-    db = SessionLocal()
-
-    existe = db.query(Usuario).filter(
-        Usuario.usuario == usuario
-    ).first()
-
+    existe = db.query(Usuario).filter(Usuario.usuario == usuario).first()
     if existe:
-        return RedirectResponse("/registrar", status_code=303)
+        return RedirectResponse('/registrar', status_code=303)
 
-    novo = Usuario(
-        usuario=usuario,
-        email=email,
-        senha=senha
-    )
-
+    novo = Usuario(usuario=usuario, email=email, senha=senha)
     db.add(novo)
-
     db.commit()
 
-    return RedirectResponse("/", status_code=303)
+    return RedirectResponse('/', status_code=303)
 
-# BANCOS
-@app.get("/bancos", response_class=HTMLResponse)
-def bancos(request: Request):
 
-    db = SessionLocal()
-
+@app.get('/bancos', response_class=HTMLResponse)
+def bancos(request: Request, db: Session = Depends(get_db)):
     bancos = db.query(Banco).all()
+    return templates.TemplateResponse(request, 'bancos.html', {'request': request, 'bancos': bancos})
 
-    return templates.TemplateResponse(
-        "bancos.html",
-        {
-            "request": request,
-            "bancos": bancos
-        }
-    )
 
-@app.post("/bancos")
+@app.post('/bancos')
 def salvar_banco(
     nome_banco: str = Form(...),
     cidade: str = Form(...),
     valor: float = Form(...),
-    descricao: str = Form(...)
+    descricao: str = Form(...),
+    db: Session = Depends(get_db)
 ):
-
-    db = SessionLocal()
-
-    novo = Banco(
-        nome_banco=nome_banco,
-        cidade=cidade,
-        valor=valor,
-        descricao=descricao
-    )
-
+    novo = Banco(nome_banco=nome_banco, cidade=cidade, valor=valor, descricao=descricao)
     db.add(novo)
-
     db.commit()
 
-    return RedirectResponse("/bancos", status_code=303)
+    return RedirectResponse('/bancos', status_code=303)
 
-@app.get("/excluir-banco/{id}")
-def excluir_banco(id: int):
 
-    db = SessionLocal()
-
-    banco = db.query(Banco).get(id)
-
-    db.delete(banco)
-
-    db.commit()
-
-    return RedirectResponse(
-        "/bancos",
-        status_code=303
-    )
-
-@app.get(
-    "/editar-banco/{id}",
-    response_class=HTMLResponse
-)
-def editar_banco(
-    request: Request,
-    id: int
-):
-
-    db = SessionLocal()
-
+@app.get('/excluir-banco/{id}')
+def excluir_banco(id: int, db: Session = Depends(get_db)):
     banco = db.get(Banco, id)
     if banco is None:
-        raise HTTPException(status_code=404, detail="Banco não encontrado")
+        raise HTTPException(status_code=404, detail='Banco não encontrado')
 
-    return templates.TemplateResponse(
-        "editar_banco.html",
-        {
-            "request": request,
-            "banco": banco
-        }
-    )
+    db.delete(banco)
+    db.commit()
 
-@app.post("/editar-banco/{id}")
+    return RedirectResponse('/bancos', status_code=303)
+
+
+@app.get('/editar-banco/{id}', response_class=HTMLResponse)
+def editar_banco(request: Request, id: int, db: Session = Depends(get_db)):
+    banco = db.get(Banco, id)
+    if banco is None:
+        raise HTTPException(status_code=404, detail='Banco não encontrado')
+
+    return templates.TemplateResponse(request, 'editar_banco.html', {'request': request, 'banco': banco})
+
+
+@app.post('/editar-banco/{id}')
 def atualizar_banco(
     id: int,
     nome_banco: str = Form(...),
     cidade: str = Form(...),
     valor: float = Form(...),
-    descricao: str = Form(...)
+    descricao: str = Form(...),
+    db: Session = Depends(get_db)
 ):
-
-    db = SessionLocal()
-
     banco = db.get(Banco, id)
     if banco is None:
-        raise HTTPException(status_code=404, detail="Banco não encontrado")
+        raise HTTPException(status_code=404, detail='Banco não encontrado')
 
     banco.nome_banco = nome_banco
     banco.cidade = cidade
     banco.valor = valor
     banco.descricao = descricao
-
     db.commit()
 
-    return RedirectResponse(
-        "/bancos",
-        status_code=303
-    )
+    return RedirectResponse('/bancos', status_code=303)
 
-# SERVIÇOS
-@app.get("/servicos", response_class=HTMLResponse)
+
+@app.get('/servicos', response_class=HTMLResponse)
 def servicos(
     request: Request,
-    busca: str = "",
-    status: str = ""
+    busca: str = '',
+    status: str = '',
+    db: Session = Depends(get_db)
 ):
-
-    db = SessionLocal()
-
     query = db.query(Servico)
-
     if busca:
-        query = query.filter(
-            Servico.cliente.contains(busca)
-        )
-
+        query = query.filter(Servico.cliente.contains(busca))
     if status:
-        query = query.filter(
-            Servico.status == status
-        )
+        query = query.filter(Servico.status == status)
 
     servicos = query.all()
-
     clientes = db.query(Cliente).all()
-
     bancos = db.query(Banco).all()
 
     return templates.TemplateResponse(
-        "servicos.html",
-        {
-            "request": request,
-            "servicos": servicos,
-            "clientes": clientes,
-            "bancos": bancos
-        }
+        request,
+        'servicos.html',
+        {'request': request, 'servicos': servicos, 'clientes': clientes, 'bancos': bancos}
     )
 
-@app.post("/servicos")
+
+@app.post('/servicos')
 def salvar_servico(
     cliente: str = Form(...),
     cidade: str = Form(...),
@@ -369,11 +269,9 @@ def salvar_servico(
     descricao: str = Form(...),
     valor: float = Form(...),
     quantidade: int = Form(...),
-    status: str = Form(...)
+    status: str = Form(...),
+    db: Session = Depends(get_db)
 ):
-
-    db = SessionLocal()
-
     novo = Servico(
         cliente=cliente,
         cidade=cidade,
@@ -383,62 +281,46 @@ def salvar_servico(
         quantidade=quantidade,
         status=status
     )
-
     db.add(novo)
-
     db.commit()
 
-    return RedirectResponse("/servicos", status_code=303)
+    return RedirectResponse('/servicos', status_code=303)
 
-@app.get("/editar-servico/{id}", response_class=HTMLResponse)
-def editar_servico(request: Request, id: int):
 
-    db = SessionLocal()
-
+@app.get('/editar-servico/{id}', response_class=HTMLResponse)
+def editar_servico(request: Request, id: int, db: Session = Depends(get_db)):
     servico = db.get(Servico, id)
     if servico is None:
-        raise HTTPException(status_code=404, detail="Serviço não encontrado")
+        raise HTTPException(status_code=404, detail='Serviço não encontrado')
 
-    return templates.TemplateResponse(
-        "editar_servico.html",
-        {
-            "request": request,
-            "servico": servico
-        }
-    )
+    return templates.TemplateResponse(request, 'editar_servico.html', {'request': request, 'servico': servico})
 
-@app.post("/editar-servico/{id}")
+
+@app.post('/editar-servico/{id}')
 def atualizar_servico(
     id: int,
     descricao: str = Form(...),
-    status: str = Form(...)
+    status: str = Form(...),
+    db: Session = Depends(get_db)
 ):
-
-    db = SessionLocal()
-
     servico = db.get(Servico, id)
     if servico is None:
-        raise HTTPException(status_code=404, detail="Serviço não encontrado")
+        raise HTTPException(status_code=404, detail='Serviço não encontrado')
 
     servico.descricao = descricao
-
     servico.status = status
-
     db.commit()
 
-    return RedirectResponse("/servicos", status_code=303)
+    return RedirectResponse('/servicos', status_code=303)
 
-@app.get("/excluir-servico/{id}")
-def excluir_servico(id: int):
 
-    db = SessionLocal()
-
+@app.get('/excluir-servico/{id}')
+def excluir_servico(id: int, db: Session = Depends(get_db)):
     servico = db.get(Servico, id)
     if servico is None:
-        raise HTTPException(status_code=404, detail="Serviço não encontrado")
+        raise HTTPException(status_code=404, detail='Serviço não encontrado')
 
     db.delete(servico)
-
     db.commit()
 
-    return RedirectResponse("/servicos", status_code=303)
+    return RedirectResponse('/servicos', status_code=303)

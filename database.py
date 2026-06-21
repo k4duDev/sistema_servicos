@@ -1,9 +1,9 @@
-import os
+﻿import os
 from pathlib import Path
 
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 env_path = Path(__file__).parent / ".env"
@@ -11,34 +11,73 @@ load_dotenv(env_path, override=True)
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-if not DATABASE_URL:
-    DATABASE_URL = f"sqlite:///{Path(__file__).parent / 'banco.db'}"
-    print("DATABASE_URL não encontrada. Usando fallback local SQLite.")
+fallback_db_path = Path(__file__).parent / "banco.db"
 
-connect_args = {}
-if DATABASE_URL.startswith("sqlite"):
-    connect_args["check_same_thread"] = False
+def get_sqlite_url() -> str:
+    return f"sqlite:///{fallback_db_path}"
+
+
+def create_db_engine(url: str):
+    connect_args = {}
+    if url.startswith("sqlite"):
+        connect_args["check_same_thread"] = False
+    else:
+        connect_args["connect_timeout"] = 5
+
+    return create_engine(
+        url,
+        connect_args=connect_args,
+        pool_pre_ping=not url.startswith("sqlite"),
+        pool_recycle=300,
+        echo=True,
+    )
+
+
+def is_postgres_url(url: str) -> bool:
+    try:
+        parsed = make_url(url)
+        return parsed.drivername.startswith("postgres")
+    except Exception:
+        return False
+
+
+def try_postgres_connection(url: str):
+    engine = create_db_engine(url)
+    try:
+        with engine.connect() as conn:
+            conn.execute("SELECT 1")
+        print("Conexão PostgreSQL bem-sucedida.")
+        return engine
+    except Exception as error:
+        print(f"Falha ao conectar PostgreSQL ({url}): {error}")
+        return None
+
+
+if DATABASE_URL:
+    print("DATABASE_URL carregada do ambiente:", DATABASE_URL)
 else:
-    # PostgreSQL: adicionar timeout para evitar penduração indefinida
-    connect_args["connect_timeout"] = 5
+    print("DATABASE_URL não encontrada no ambiente.")
 
-engine = create_engine(
-    DATABASE_URL,
-    connect_args=connect_args,
-    pool_pre_ping=not DATABASE_URL.startswith("sqlite"),
-    pool_recycle=300,
-    echo=True
-)
-
-if not DATABASE_URL.startswith("sqlite"):
-    # Nota: o timeout foi configurado em connect_args acima
-    # Não testamos conexão aqui para evitar penduração
-    pass
+if not DATABASE_URL:
+    DATABASE_URL = get_sqlite_url()
+    print("Usando fallback local SQLite:", DATABASE_URL)
+    engine = create_db_engine(DATABASE_URL)
+else:
+    if DATABASE_URL.startswith("sqlite"):
+        engine = create_db_engine(DATABASE_URL)
+    elif is_postgres_url(DATABASE_URL):
+        engine = try_postgres_connection(DATABASE_URL)
+        if engine is None:
+            DATABASE_URL = get_sqlite_url()
+            print("Usando fallback local SQLite porque o PostgreSQL não está disponível:", DATABASE_URL)
+            engine = create_db_engine(DATABASE_URL)
+    else:
+        engine = create_db_engine(DATABASE_URL)
 
 SessionLocal = sessionmaker(
     autocommit=False,
     autoflush=False,
-    bind=engine
+    bind=engine,
 )
 
 Base = declarative_base()

@@ -17,6 +17,19 @@ def get_sqlite_url() -> str:
     return f"sqlite:///{fallback_db_path}"
 
 
+def normalize_database_url(url: str) -> str:
+    if url and is_postgres_url(url):
+        if "sslmode=" not in url.lower():
+            if "?" in url:
+                return f"{url}&sslmode=require"
+            return f"{url}?sslmode=require"
+    return url
+
+
+if DATABASE_URL:
+    DATABASE_URL = normalize_database_url(DATABASE_URL)
+
+
 def create_db_engine(url: str):
     connect_args = {}
     if url.startswith("sqlite"):

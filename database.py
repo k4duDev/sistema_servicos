@@ -7,7 +7,7 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 env_path = Path(__file__).parent / ".env"
-load_dotenv(env_path)
+load_dotenv(env_path, override=True)
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 

@@ -5,7 +5,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 import threading
 
-from database import Base, engine, SessionLocal
+from database import Base, engine, SessionLocal, seed_default_user
 from models import Usuario, Cliente, Banco, Servico
 
 print('MAIN INICIANDO...')
@@ -22,8 +22,10 @@ def init_database():
     try:
         Base.metadata.create_all(bind=engine)
         print('Banco conectado com sucesso')
+        seed_default_user()
     except Exception as e:
         print(f'Erro ao conectar ao banco: {e}')
+
 
 # Tentar inicializar o banco em uma thread separada (background)
 # Não aguardar conclusão para não bloquear o startup do app

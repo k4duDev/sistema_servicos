@@ -2,7 +2,7 @@
 from pathlib import Path
 
 from dotenv import load_dotenv
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.engine.url import make_url
 from sqlalchemy.orm import declarative_base, sessionmaker
 
@@ -45,7 +45,7 @@ def try_postgres_connection(url: str):
     engine = create_db_engine(url)
     try:
         with engine.connect() as conn:
-            conn.execute("SELECT 1")
+            conn.execute(text("SELECT 1"))
         print("Conexão PostgreSQL bem-sucedida.")
         return engine
     except Exception as error:
@@ -81,3 +81,23 @@ SessionLocal = sessionmaker(
 )
 
 Base = declarative_base()
+
+
+def seed_default_user():
+    """Criar usuário admin padrão se não existir."""
+    db = SessionLocal()
+    try:
+        from models import Usuario
+        
+        usuario_existe = db.query(Usuario).filter(Usuario.usuario == "admin").first()
+        
+        if not usuario_existe:
+            admin = Usuario(usuario="admin", email="admin@sistema.com", senha="123")
+            db.add(admin)
+            db.commit()
+            print("✓ Usuário admin criado com sucesso (usuário: admin, senha: 123)")
+    except Exception as e:
+        print(f"Erro ao criar usuário admin: {e}")
+    finally:
+        db.close()
+

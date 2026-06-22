@@ -243,14 +243,14 @@ def atualizar_banco(
 def servicos(
     request: Request,
     busca: str = '',
-    status: str = '',
+    status_filter: str = '',
     db: Session = Depends(get_db)
 ):
     query = db.query(Servico)
     if busca:
         query = query.filter(Servico.cliente.contains(busca))
-    if status:
-        query = query.filter(Servico.status == status)
+    if status_filter:
+        query = query.filter(Servico.status == status_filter)
 
     servicos = query.all()
     clientes = db.query(Cliente).all()

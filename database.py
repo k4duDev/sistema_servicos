@@ -109,8 +109,11 @@ def seed_default_user():
             db.add(admin)
             db.commit()
             print("✓ Usuário admin criado com sucesso (usuário: admin, senha: 123)")
+        else:
+            print("✓ Usuário admin já existe")
     except Exception as e:
         print(f"Erro ao criar usuário admin: {e}")
+        db.rollback()
     finally:
         db.close()
 

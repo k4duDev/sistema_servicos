@@ -243,14 +243,14 @@ def atualizar_banco(
 def servicos(
     request: Request,
     busca: str = '',
-    status_filter: str = '',
+    status: str = '',
     db: Session = Depends(get_db)
 ):
     query = db.query(Servico)
     if busca:
         query = query.filter(Servico.cliente.contains(busca))
-    if status_filter:
-        query = query.filter(Servico.status == status_filter)
+    if status:
+        query = query.filter(Servico.status == status)
 
     servicos = query.all()
     clientes = db.query(Cliente).all()
@@ -259,7 +259,14 @@ def servicos(
     return templates.TemplateResponse(
         request,
         'servicos.html',
-        {'request': request, 'servicos': servicos, 'clientes': clientes, 'bancos': bancos}
+        {
+            'request': request,
+            'servicos': servicos,
+            'clientes': clientes,
+            'bancos': bancos,
+            'busca': busca,
+            'status': status,
+        }
     )
 
 

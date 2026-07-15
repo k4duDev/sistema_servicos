@@ -36,6 +36,7 @@
             name="busca"
             class="form-control"
             placeholder="Buscar cliente"
+            value="{{ busca }}"
             >
 
         </div>
@@ -47,13 +48,19 @@
             class="form-control"
             >
 
-                <option value="">
+                <option value="" {% if status == '' %}selected{% endif %}>
                     Todos Status
                 </option>
 
-                <option>Pendente</option>
-                <option>Concluído</option>
-                <option>Cancelado</option>
+                <option value="Pendente" {% if status == 'Pendente' %}selected{% endif %}>
+                    Pendente
+                </option>
+                <option value="Concluído" {% if status == 'Concluído' %}selected{% endif %}>
+                    Concluído
+                </option>
+                <option value="Cancelado" {% if status == 'Cancelado' %}selected{% endif %}>
+                    Cancelado
+                </option>
 
             </select>
 

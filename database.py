@@ -13,8 +13,17 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 
 fallback_db_path = Path(__file__).parent / "banco.db"
 
+
 def get_sqlite_url() -> str:
-    return f"sqlite:///{fallback_db_path}"
+    return f"sqlite:///{fallback_db_path.as_posix()}"
+
+
+def is_postgres_url(url: str) -> bool:
+    try:
+        parsed = make_url(url)
+        return parsed.drivername.startswith("postgres")
+    except Exception:
+        return False
 
 
 def normalize_database_url(url: str) -> str:
@@ -46,14 +55,6 @@ def create_db_engine(url: str):
     )
 
 
-def is_postgres_url(url: str) -> bool:
-    try:
-        parsed = make_url(url)
-        return parsed.drivername.startswith("postgres")
-    except Exception:
-        return False
-
-
 def try_postgres_connection(url: str):
     engine = create_db_engine(url)
     try:
@@ -71,6 +72,7 @@ if DATABASE_URL:
 else:
     print("DATABASE_URL não encontrada no ambiente.")
 
+
 if not DATABASE_URL:
     DATABASE_URL = get_sqlite_url()
     print("Usando fallback local SQLite:", DATABASE_URL)
@@ -87,6 +89,7 @@ else:
     else:
         engine = create_db_engine(DATABASE_URL)
 
+
 SessionLocal = sessionmaker(
     autocommit=False,
     autoflush=False,
@@ -101,9 +104,9 @@ def seed_default_user():
     db = SessionLocal()
     try:
         from models import Usuario
-        
+
         usuario_existe = db.query(Usuario).filter(Usuario.usuario == "admin").first()
-        
+
         if not usuario_existe:
             admin = Usuario(usuario="admin", email="admin@sistema.com", senha="123")
             db.add(admin)

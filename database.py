@@ -10,7 +10,7 @@ env_path = Path(__file__).parent / ".env"
 load_dotenv(env_path, override=True)
 
 DATABASE_URL = os.getenv("DATABASE_URL")
-FALLBACK_TO_SQLITE = os.getenv("FALLBACK_TO_SQLITE", "true").strip().lower() in ("1", "true", "yes")
+FALLBACK_TO_SQLITE = os.getenv("FALLBACK_TO_SQLITE", "false").strip().lower() in ("1", "true", "yes")
 
 fallback_db_path = Path(__file__).parent / "banco.db"
 
@@ -75,27 +75,24 @@ else:
 
 
 engine = None
-if not DATABASE_URL:
+if DATABASE_URL and not DATABASE_URL.startswith("sqlite") and is_postgres_url(DATABASE_URL):
+    engine = try_postgres_connection(DATABASE_URL)
+    if engine is None and FALLBACK_TO_SQLITE:
+        DATABASE_URL = get_sqlite_url()
+        print("Usando fallback local SQLite porque o PostgreSQL não está disponível:", DATABASE_URL)
+        engine = create_db_engine(DATABASE_URL)
+elif DATABASE_URL:
+    engine = create_db_engine(DATABASE_URL)
+else:
     DATABASE_URL = get_sqlite_url()
     print("Usando fallback local SQLite:", DATABASE_URL)
     engine = create_db_engine(DATABASE_URL)
-else:
-    if DATABASE_URL.startswith("sqlite"):
-        engine = create_db_engine(DATABASE_URL)
-    elif is_postgres_url(DATABASE_URL):
-        engine = try_postgres_connection(DATABASE_URL)
-        if engine is None:
-            if FALLBACK_TO_SQLITE:
-                DATABASE_URL = get_sqlite_url()
-                print("Usando fallback local SQLite porque o PostgreSQL não está disponível:", DATABASE_URL)
-                engine = create_db_engine(DATABASE_URL)
-            else:
-                raise RuntimeError(
-                    "Não foi possível conectar ao Supabase. "
-                    "Defina FALLBACK_TO_SQLITE=true para usar SQLite local, ou corrija a conexão Supabase."
-                )
-    else:
-        engine = create_db_engine(DATABASE_URL)
+
+if engine is None:
+    raise RuntimeError(
+        "Falha ao inicializar a engine de banco de dados. "
+        "Verifique DATABASE_URL e conexão com Supabase."
+    )
 
 if engine is None:
     raise RuntimeError("Falha ao inicializar a engine de banco de dados.")

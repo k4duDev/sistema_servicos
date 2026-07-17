@@ -1,6 +1,4 @@
 from fastapi import Depends, FastAPI, Request, Form, HTTPException
-from typing import Optional
-from urllib.parse import parse_qsl
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -30,6 +28,27 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+async def read_request_payload(request: Request):
+    content_type = request.headers.get('content-type', '')
+
+    if content_type.startswith('application/json'):
+        return await request.json()
+
+    form = await request.form()
+    return dict(form)
+
+
+def parse_number(value, cast):
+    if value is None or value == '':
+        return None
+    if isinstance(value, (int, float)):
+        return cast(value)
+    try:
+        return cast(str(value).strip())
+    except (TypeError, ValueError):
+        return None
 
 
 @app.get('/', response_class=HTMLResponse)
@@ -89,19 +108,9 @@ def clientes(request: Request, db: Session = Depends(get_db)):
 
 @app.post('/clientes')
 async def salvar_cliente(request: Request, db: Session = Depends(get_db)):
-    content_type = request.headers.get('content-type', '')
-
-    if content_type.startswith('application/json'):
-        data = await request.json()
-        nome = data.get('nome')
-        cidade = data.get('cidade')
-    else:
-        body = await request.body()
-        if not body:
-            raise HTTPException(status_code=422, detail='Corpo da requisição vazio')
-        parsed = dict(parse_qsl(body.decode('utf-8')))
-        nome = parsed.get('nome')
-        cidade = parsed.get('cidade')
+    data = await read_request_payload(request)
+    nome = data.get('nome')
+    cidade = data.get('cidade')
 
     if not nome or not cidade:
         raise HTTPException(status_code=422, detail='Nome e cidade são obrigatórios')
@@ -140,19 +149,9 @@ def editar_cliente(request: Request, id: int, db: Session = Depends(get_db)):
 
 @app.post('/editar-cliente/{id}')
 async def atualizar_cliente(request: Request, id: int, db: Session = Depends(get_db)):
-    content_type = request.headers.get('content-type', '')
-
-    if content_type.startswith('application/json'):
-        data = await request.json()
-        nome = data.get('nome')
-        cidade = data.get('cidade')
-    else:
-        body = await request.body()
-        if not body:
-            raise HTTPException(status_code=422, detail='Corpo da requisição vazio')
-        parsed = dict(parse_qsl(body.decode('utf-8')))
-        nome = parsed.get('nome')
-        cidade = parsed.get('cidade')
+    data = await read_request_payload(request)
+    nome = data.get('nome')
+    cidade = data.get('cidade')
 
     cliente = db.get(Cliente, id)
     if cliente is None:
@@ -199,23 +198,11 @@ def bancos(request: Request, db: Session = Depends(get_db)):
 
 @app.post('/bancos')
 async def salvar_banco(request: Request, db: Session = Depends(get_db)):
-    content_type = request.headers.get('content-type', '')
-
-    if content_type.startswith('application/json'):
-        data = await request.json()
-        nome_banco = data.get('nome_banco')
-        cidade = data.get('cidade')
-        valor = data.get('valor')
-        descricao = data.get('descricao')
-    else:
-        body = await request.body()
-        if not body:
-            raise HTTPException(status_code=422, detail='Corpo da requisição vazio')
-        parsed = dict(parse_qsl(body.decode('utf-8')))
-        nome_banco = parsed.get('nome_banco')
-        cidade = parsed.get('cidade')
-        valor = parsed.get('valor')
-        descricao = parsed.get('descricao')
+    data = await read_request_payload(request)
+    nome_banco = data.get('nome_banco')
+    cidade = data.get('cidade')
+    valor = parse_number(data.get('valor'), float)
+    descricao = data.get('descricao')
 
     if not nome_banco or not cidade or valor is None or not descricao:
         raise HTTPException(status_code=422, detail='Todos os campos do banco são obrigatórios')
@@ -250,23 +237,11 @@ def editar_banco(request: Request, id: int, db: Session = Depends(get_db)):
 
 @app.post('/editar-banco/{id}')
 async def atualizar_banco(request: Request, id: int, db: Session = Depends(get_db)):
-    content_type = request.headers.get('content-type', '')
-
-    if content_type.startswith('application/json'):
-        data = await request.json()
-        nome_banco = data.get('nome_banco')
-        cidade = data.get('cidade')
-        valor = data.get('valor')
-        descricao = data.get('descricao')
-    else:
-        body = await request.body()
-        if not body:
-            raise HTTPException(status_code=422, detail='Corpo da requisição vazio')
-        parsed = dict(parse_qsl(body.decode('utf-8')))
-        nome_banco = parsed.get('nome_banco')
-        cidade = parsed.get('cidade')
-        valor = parsed.get('valor')
-        descricao = parsed.get('descricao')
+    data = await read_request_payload(request)
+    nome_banco = data.get('nome_banco')
+    cidade = data.get('cidade')
+    valor = parse_number(data.get('valor'), float)
+    descricao = data.get('descricao')
 
     banco = db.get(Banco, id)
     if banco is None:
@@ -317,29 +292,14 @@ def servicos(
 
 @app.post('/servicos')
 async def salvar_servico(request: Request, db: Session = Depends(get_db)):
-    content_type = request.headers.get('content-type', '')
-
-    if content_type.startswith('application/json'):
-        data = await request.json()
-        cliente = data.get('cliente')
-        cidade = data.get('cidade')
-        banco = data.get('banco')
-        descricao = data.get('descricao')
-        valor = data.get('valor')
-        quantidade = data.get('quantidade')
-        status = data.get('status')
-    else:
-        body = await request.body()
-        if not body:
-            raise HTTPException(status_code=422, detail='Corpo da requisição vazio')
-        parsed = dict(parse_qsl(body.decode('utf-8')))
-        cliente = parsed.get('cliente')
-        cidade = parsed.get('cidade')
-        banco = parsed.get('banco')
-        descricao = parsed.get('descricao')
-        valor = parsed.get('valor')
-        quantidade = parsed.get('quantidade')
-        status = parsed.get('status')
+    data = await read_request_payload(request)
+    cliente = data.get('cliente')
+    cidade = data.get('cidade')
+    banco = data.get('banco')
+    descricao = data.get('descricao')
+    valor = parse_number(data.get('valor'), float)
+    quantidade = parse_number(data.get('quantidade'), int)
+    status = data.get('status')
 
     if not cliente or not cidade or not banco or not descricao or valor is None or quantidade is None or not status:
         raise HTTPException(status_code=422, detail='Todos os campos de serviço são obrigatórios')

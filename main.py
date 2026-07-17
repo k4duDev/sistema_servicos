@@ -1,5 +1,6 @@
 from fastapi import Depends, FastAPI, Request, Form, HTTPException
 from typing import Optional
+from urllib.parse import parse_qsl
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -87,16 +88,25 @@ def clientes(request: Request, db: Session = Depends(get_db)):
 
 
 @app.post('/clientes')
-def salvar_cliente(
+async def salvar_cliente(
     request: Request,
     db: Session = Depends(get_db),
     nome: Optional[str] = Form(None),
     cidade: Optional[str] = Form(None),
 ):
     if request.headers.get('content-type', '').startswith('application/json'):
-        data = request.json()
+        data = await request.json()
         nome = data.get('nome')
         cidade = data.get('cidade')
+    elif request.headers.get('content-type', '').startswith('application/x-www-form-urlencoded'):
+        body = await request.body()
+        parsed = dict(parse_qsl(body.decode('utf-8')))
+        nome = parsed.get('nome', nome)
+        cidade = parsed.get('cidade', cidade)
+    else:
+        form = await request.form()
+        nome = form.get('nome', nome)
+        cidade = form.get('cidade', cidade)
 
     if not nome or not cidade:
         raise HTTPException(status_code=422, detail='Nome e cidade são obrigatórios')
@@ -134,7 +144,7 @@ def editar_cliente(request: Request, id: int, db: Session = Depends(get_db)):
 
 
 @app.post('/editar-cliente/{id}')
-def atualizar_cliente(
+async def atualizar_cliente(
     request: Request,
     id: int,
     db: Session = Depends(get_db),
@@ -142,9 +152,18 @@ def atualizar_cliente(
     cidade: Optional[str] = Form(None),
 ):
     if request.headers.get('content-type', '').startswith('application/json'):
-        data = request.json()
+        data = await request.json()
         nome = data.get('nome')
         cidade = data.get('cidade')
+    elif request.headers.get('content-type', '').startswith('application/x-www-form-urlencoded'):
+        body = await request.body()
+        parsed = dict(parse_qsl(body.decode('utf-8')))
+        nome = parsed.get('nome', nome)
+        cidade = parsed.get('cidade', cidade)
+    else:
+        form = await request.form()
+        nome = form.get('nome', nome)
+        cidade = form.get('cidade', cidade)
 
     cliente = db.get(Cliente, id)
     if cliente is None:
@@ -190,7 +209,7 @@ def bancos(request: Request, db: Session = Depends(get_db)):
 
 
 @app.post('/bancos')
-def salvar_banco(
+async def salvar_banco(
     request: Request,
     db: Session = Depends(get_db),
     nome_banco: Optional[str] = Form(None),
@@ -199,11 +218,24 @@ def salvar_banco(
     descricao: Optional[str] = Form(None),
 ):
     if request.headers.get('content-type', '').startswith('application/json'):
-        data = request.json()
+        data = await request.json()
         nome_banco = data.get('nome_banco')
         cidade = data.get('cidade')
         valor = data.get('valor')
         descricao = data.get('descricao')
+    elif request.headers.get('content-type', '').startswith('application/x-www-form-urlencoded'):
+        body = await request.body()
+        parsed = dict(parse_qsl(body.decode('utf-8')))
+        nome_banco = parsed.get('nome_banco', nome_banco)
+        cidade = parsed.get('cidade', cidade)
+        valor = parsed.get('valor', valor)
+        descricao = parsed.get('descricao', descricao)
+    else:
+        form = await request.form()
+        nome_banco = form.get('nome_banco', nome_banco)
+        cidade = form.get('cidade', cidade)
+        valor = form.get('valor', valor)
+        descricao = form.get('descricao', descricao)
 
     if not nome_banco or not cidade or valor is None or not descricao:
         raise HTTPException(status_code=422, detail='Todos os campos do banco são obrigatórios')
@@ -237,7 +269,7 @@ def editar_banco(request: Request, id: int, db: Session = Depends(get_db)):
 
 
 @app.post('/editar-banco/{id}')
-def atualizar_banco(
+async def atualizar_banco(
     request: Request,
     id: int,
     db: Session = Depends(get_db),
@@ -247,11 +279,24 @@ def atualizar_banco(
     descricao: Optional[str] = Form(None),
 ):
     if request.headers.get('content-type', '').startswith('application/json'):
-        data = request.json()
+        data = await request.json()
         nome_banco = data.get('nome_banco')
         cidade = data.get('cidade')
         valor = data.get('valor')
         descricao = data.get('descricao')
+    elif request.headers.get('content-type', '').startswith('application/x-www-form-urlencoded'):
+        body = await request.body()
+        parsed = dict(parse_qsl(body.decode('utf-8')))
+        nome_banco = parsed.get('nome_banco', nome_banco)
+        cidade = parsed.get('cidade', cidade)
+        valor = parsed.get('valor', valor)
+        descricao = parsed.get('descricao', descricao)
+    else:
+        form = await request.form()
+        nome_banco = form.get('nome_banco', nome_banco)
+        cidade = form.get('cidade', cidade)
+        valor = form.get('valor', valor)
+        descricao = form.get('descricao', descricao)
 
     banco = db.get(Banco, id)
     if banco is None:
@@ -301,7 +346,7 @@ def servicos(
 
 
 @app.post('/servicos')
-def salvar_servico(
+async def salvar_servico(
     request: Request,
     db: Session = Depends(get_db),
     cliente: Optional[str] = Form(None),
@@ -313,7 +358,7 @@ def salvar_servico(
     status: Optional[str] = Form(None),
 ):
     if request.headers.get('content-type', '').startswith('application/json'):
-        data = request.json()
+        data = await request.json()
         cliente = data.get('cliente')
         cidade = data.get('cidade')
         banco = data.get('banco')
@@ -321,6 +366,25 @@ def salvar_servico(
         valor = data.get('valor')
         quantidade = data.get('quantidade')
         status = data.get('status')
+    elif request.headers.get('content-type', '').startswith('application/x-www-form-urlencoded'):
+        body = await request.body()
+        parsed = dict(parse_qsl(body.decode('utf-8')))
+        cliente = parsed.get('cliente', cliente)
+        cidade = parsed.get('cidade', cidade)
+        banco = parsed.get('banco', banco)
+        descricao = parsed.get('descricao', descricao)
+        valor = parsed.get('valor', valor)
+        quantidade = parsed.get('quantidade', quantidade)
+        status = parsed.get('status', status)
+    else:
+        form = await request.form()
+        cliente = form.get('cliente', cliente)
+        cidade = form.get('cidade', cidade)
+        banco = form.get('banco', banco)
+        descricao = form.get('descricao', descricao)
+        valor = form.get('valor', valor)
+        quantidade = form.get('quantidade', quantidade)
+        status = form.get('status', status)
 
     if not cliente or not cidade or not banco or not descricao or valor is None or quantidade is None or not status:
         raise HTTPException(status_code=422, detail='Todos os campos de serviço são obrigatórios')

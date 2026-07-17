@@ -5,7 +5,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 import threading
 
-from database import Base, engine, SessionLocal, seed_default_user
+from database import Base, engine, SessionLocal, initialize_database
 from models import Usuario, Cliente, Banco, Servico
 
 print('MAIN INICIANDO...')
@@ -17,20 +17,9 @@ app.mount('/static', StaticFiles(directory='static'), name='static')
 
 templates = Jinja2Templates(directory='templates')
 
-def init_database():
-    """Inicializar banco de dados com timeout."""
-    try:
-        Base.metadata.create_all(bind=engine)
-        print('Banco conectado com sucesso')
-        seed_default_user()
-    except Exception as e:
-        print(f'Erro ao conectar ao banco: {e}')
-
-
-# Tentar inicializar o banco em uma thread separada (background)
-# Não aguardar conclusão para não bloquear o startup do app
-init_thread = threading.Thread(target=init_database, daemon=True)
-init_thread.start()
+@app.on_event("startup")
+def startup_event():
+    initialize_database()
 
 
 def get_db():

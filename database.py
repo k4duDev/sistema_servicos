@@ -128,3 +128,14 @@ def seed_default_user():
     finally:
         db.close()
 
+
+def initialize_database():
+    """Inicializar o banco de dados e preparar o ambiente antes de aceitar requisições."""
+    try:
+        Base.metadata.create_all(bind=engine)
+        print("Banco conectado com sucesso")
+        seed_default_user()
+    except Exception as e:
+        print(f"Erro ao conectar ao banco: {e}")
+        raise
+
